@@ -1,0 +1,83 @@
+version: "3.9"
+
+x-app-environment: &app-environment
+  APP_NAME: "go-clean-api"
+  APP_VERSION: "1.0.0"
+  HTTP_PORT: "8080"
+  LOG_LEVEL: "debug"
+  JWT_TOKEN_EXPIRY: "24h"
+  JWT_SECRET: "your-secret-key-change-in-production"
+  DB_ADDRESS: "root:password@tcp(mariadb:3306)/localdb?parseTime=true&loc=Asia%2FTokyo&charset=utf8mb4"
+
+x-mariadb-command: &mariadb-command
+  - --character-set-server=utf8mb4
+  - --collation-server=utf8mb4_unicode_ci
+  - --skip-character-set-client-handshake
+  - --default-time-zone=+09:00
+
+services:
+  app:
+    container_name: app
+    platform: linux/amd64
+    pid: "host"
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-environment
+    ports:
+      - "8080:8080"
+    command: ["server"]
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: "2Gb"
+        reservations:
+          cpus: "0.60"
+          memory: "1Gb"
+
+  mariadb:
+    image: mariadb:11
+    container_name: mariadb
+    environment:
+      MARIADB_ROOT_PASSWORD: password
+      MARIADB_DATABASE: localdb
+      TZ: Asia/Tokyo
+    ports:
+      - "3306:3306"
+    volumes:
+      # db/schema.sql を配置しておけば、初回起動時に自動で実行される
+      - ../migrations:/docker-entrypoint-initdb.d
+    command: *mariadb-command
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # sqlboiler 生成専用（make generate.boilerplate で --profile boiler を付けて起動）
+  mariadb-boiler:
+    profiles: [boiler]
+    image: mariadb:11
+    container_name: mariadb-generatedb
+    environment:
+      MARIADB_ROOT_PASSWORD: password
+      MARIADB_DATABASE: generatedb
+      TZ: Asia/Tokyo
+    ports:
+      - "3307:3306"
+    volumes:
+      # 生成用 DDL のみ（本番 schema.sql は流さない）
+      - ../migrations/schema.sql.boiler:/docker-entrypoint-initdb.d/schema.sql:ro
+    command: *mariadb-command
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 1s
+      timeout: 3s
+      retries: 10
+      start_period: 5s

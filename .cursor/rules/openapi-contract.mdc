@@ -1,0 +1,53 @@
+---
+description: OpenAPI 契約（openapi.yaml）・oapi-codegen 生成・Echo ルータとの整合
+alwaysApply: false
+globs:
+  - api/openapi/**
+  - internal/delivery/restapi/**/*.go
+---
+
+# OpenAPI 契約と HTTP 実装の整合
+
+人向けの手順は [CONTRIBUTING.md](CONTRIBUTING.md) の機能追加チェックリスト（OpenAPI → `make generate` → delivery）。ここはエージェント向け要約。
+
+## 契約ファースト
+
+1. **`api/openapi/openapi.yaml` を更新**（paths / components / エラー応答）。
+2. **生成を回す:** `make generate`（または `go generate ./api/openapi/...`）。  
+   設定は **`api/openapi/cfg.yaml`**（`package: openapi` → 出力 **`api/openapi/openapi.gen.go`**）。
+3. **`api/openapi/openapi.gen.go` は手編集しない**（再生成で上書きされる）。
+
+## パスとルータの一致（必須）
+
+OpenAPI の `paths` は **URL 全体**（例: `/v1/auth/register`）。
+
+Echo では `engine.Group("v1")` に対して **`/auth/register`** のように **v1 より後ろだけ** を登録する。  
+**組み合わせ結果**が OpenAPI の path と一致していることを確認する。
+
+| OpenAPI（例） | Echo（`Group("v1")` 子） |
+|---------------|-------------------------|
+| `/v1/auth/register` | `POST("/auth/register", …)` |
+| `/v1/auth/login` | `POST("/auth/login", …)` |
+
+新規 API を足すときは **両方を同じ PR で揃える**。
+
+## delivery での使い方
+
+- リクエスト・成功レスポンスの型は **`go-clean-api/api/openapi` の生成型**（例: `RegisterRequest`）。
+- アプリ層は **`Input` / `Output`**。ハンドラ内で OpenAPI 型 ↔ usecase の変換のみ行う（[`go-clean-architecture.mdc`](go-clean-architecture.mdc) と同ディレクトリのルール）。
+
+## エラー応答（ErrorResponse）
+
+`components.schemas.ErrorResponse` に合わせる。
+
+- **必須:** `type`（string）, `error`（string）
+- **任意:** `details`（`ErrorDetailItem` の配列）
+
+delivery では `domain/errors` の種別を **`Type.Name()`** などで `type` に載せ、HTTP ステータスは OpenAPI の `responses`（400 / 401 / 409 / 500 等）と一致させる。契約に無いステータスだけ返さない（追加するなら **openapi.yaml にも追記**）。
+
+## チェックリスト（差分レビュー）
+
+- [ ] `openapi.yaml` の path / method と `router.go`（およびハンドラ）が一致
+- [ ] スキーマ変更後に **`openapi.gen.go` を再生成**している（生成物がコミットに含まれる運用なら Diff あり）
+- [ ] エラー JSON が `ErrorResponse` と矛盾しない（フィールド名・必須）
+- [ ] `operationId` はユニーク（将来クライアント生成や運用で使う場合に備える）

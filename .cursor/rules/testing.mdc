@@ -1,0 +1,51 @@
+---
+description: Go テストの揃え方（ユースケース gomock・table-driven・命名）
+alwaysApply: false
+globs:
+  - "**/*_test.go"
+---
+
+# テスト規約（たたき台）
+
+人向けの方針は [CONTRIBUTING.md](CONTRIBUTING.md) の「テストの方針」。実装例は **`internal/app/usecase/auth/*_test.go`**。
+
+## パッケージ
+
+- **外部テスト** `package xxx_test` を推奨（本番 import グラフの整理・黒箱に近い検証）。  
+  テスト補助や `export_test` が必要なときだけ `package xxx` の内部テストを検討する。
+
+## ユースケース
+
+- **対象:** `NewXxxUsecase` が返す **本実装** の `Execute`。
+- **モック:** `domain` の **`Repository`（など）** と、その usecase パッケージの **`ports.go` の Output Port**（`go.uber.org/mock`）。
+- **モック生成:** インターフェース定義ファイル先頭の `//go:generate` を維持し、変更後は次を実行する。  
+  `go generate ./internal/domain/user/...`  
+  `go generate ./internal/app/usecase/auth/...`  
+- 生成物は **`mocks/`**（例: `internal/domain/user/mocks`, `internal/app/usecase/auth/mocks`）。**手編集しない。**
+- **ユースケース型**（`type X = app.Interactor[...]` のエイリアス）は mockgen 対象外 → ポートと Repository を疑う。
+
+## スタイル
+
+- **アサーションは [testify](https://github.com/stretchr/testify)** を使う（`require` … 失敗で即中断、`assert` … 続行）。`go.mod` に `github.com/stretchr/testify` を直接依存として置く。
+- **`t.Parallel()`** をテスト関数先頭で付けてよい（並行安全なテストに限る）。
+- **`gomock.NewController(t)`** を使う。サブテストで `t.Run` を使う場合は **サブテストごとに Controller を取り直す**（並行時の安全のため）。
+- **ユースケースのテストは原則 table-driven**（`tests := []struct { name; …; arrange; assert }`）。gomock は **`t.Run` ごとに `gomock.NewController(t)`** を取る。分岐が極端に単純な1ケースだけのときのみ単一関数でもよい。
+- 日本語のサブテスト名（例: `TestRegisterUsecase_成功`）はチームで統一してよい。
+
+## delivery / infra
+
+- **delivery:** `httptest` と usecase の **fake**（小さな `Execute` スタブ）で HTTP と JSON を検証。
+- **infra:** 必要になったら DB integration（短期はスキップ可）。
+
+## 実行
+
+```sh
+go test ./path/to/pkg/... -count=1 -race -short
+make test   # リポジトリ全体（gotestsum）
+```
+
+## レビュー時
+
+- [ ] モックの **期待呼び出し**が実装の分岐と一致しているか
+- [ ] **ドメインエラー型**（`domain/errors` の `Type*.Is`）でアサートしているか
+- [ ] 機密値をテストデータにベタ書きしていないか（ダミーでよい）

@@ -1,0 +1,43 @@
+#:schema https://json.schemastore.org/any.json
+
+env_files = []
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/app ./cmd/app/main.go"
+  bin = "./tmp/app"
+  args_bin = ["server", "--log.pretty", "true"]
+  full_bin = "./tmp/app"
+  log = "air_server_errors.log"
+  include_dir = ["cmd", "internal", "pkg"]
+  include_ext = ["go", "yaml"]
+  exclude_regex = ["_test.go"]
+  delay = 1000 # ms
+  kill_delay = "0s"
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  main_only = false
+  silent = false
+  time = true
+
+[misc]
+  clean_on_exit = false
+
+[proxy]
+  app_port = 0
+  app_start_timeout = 0
+  enabled = false
+  proxy_port = 0
+
+[screen]
+  clear_on_rebuild = false
+  keep_scroll = true

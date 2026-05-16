@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: Go Clean API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local Development
+
+tags:
+  - name: auth
+    description: Authentication
+
+paths:
+  /v1/auth/register:
+    post:
+      tags: [auth]
+      summary: ユーザ登録
+      operationId: postV1AuthRegister
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+            examples:
+              default:
+                value:
+                  name: yuki kawamura
+                  email: yuki.kawamura@bulls.com
+                  password: xxxxxxxxxxxx
+      responses:
+        "201":
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterResponse"
+              examples:
+                default:
+                  value:
+                    id: 123456
+        "400":
+          description: バリデーションエラー等
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: コンフリクトエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバー内部エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      summary: ユーザログイン
+      operationId: postV1AuthLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            examples:
+              default:
+                value:
+                  email: yuki.kawamura@bulls.com
+                  password: xxxxxxxxxxxx
+      responses:
+        "200":
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+              examples:
+                default:
+                  value:
+                    token: TOKEN-XXXXXXXXXXXXXX
+        "400":
+          description: バリデーションエラー等
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証失敗
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバー内部エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          description: ユーザ名（README の「整数」は誤記とみなし string とした）
+          minLength: 1
+          example: yuki kawamura
+        email:
+          type: string
+          format: email
+          example: yuki.kawamura@bulls.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 30
+          example: xxxxxxxxxxxx
+
+    RegisterResponse:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+          format: uint64
+          description: ユーザID
+          example: 2838482374897
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: yuki.kawamura@bulls.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 30
+          example: xxxxxxxxxxxx
+
+    LoginResponse:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: トークン
+          example: TOKEN-XXXXXXXXXXXXXX
+
+    ErrorResponse:
+      type: object
+      description: エラー時のレスポンス本文（README の形式に準拠）
+      required: [type, error]
+      properties:
+        type:
+          type: string
+          description: エラー種別
+          example: INVALID_PARAMETER
+        error:
+          type: string
+          description: エラーメッセージ（概要）
+          example: validation error
+        details:
+          type: array
+          description: フィールド単位のエラー（任意）
+          items:
+            $ref: "#/components/schemas/ErrorDetailItem"
+      example:
+        type: INVALID_PARAMETER
+        error: validation error
+        details:
+          - field: email
+            message: email is required
+
+    ErrorDetailItem:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          example: email
+        message:
+          type: string
+          example: email is required

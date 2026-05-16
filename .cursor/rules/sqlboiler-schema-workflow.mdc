@@ -1,0 +1,33 @@
+---
+description: schema.sql / schema.sql.boiler 変更と sqlboiler モデル再生成のローカル手順（人間・AI 共通）
+globs: migrations/**
+alwaysApply: false
+---
+
+# sqlboiler 用スキーマ変更フロー（ローカル専用）
+
+`migrations/schema.sql`（System Versioning あり）と `migrations/schema.sql.boiler`（生成専用・論理テーブル）の関係・作業手順はリポジトリ直下の `migrations/README.md` が正本。ここではエージェントが従うべき要約。
+
+## いつ適用するか
+
+- メンバーまたはエージェントが **`migrations/schema.sql`** または **`migrations/schema.sql.boiler`** を変更するとき。
+- **`internal/infra/mariadb/models`** を sqlboiler で再生成するとき。
+
+## 作業手順（必ずこの順）
+
+1. **`schema.sql` を修正**（本番・開発 DDL）。設計の源はこれだけ。
+2. **修正後の `schema.sql` を根拠に、`schema.sql.boiler` 相当の DDL を用意する**（メンバーが AI に依頼してもよい）。
+3. **内容を Diff で確認**。次を満たすこと:
+   - `row_start` / `row_end` / `PERIOD` / `WITH SYSTEM VERSIONING` / `PARTITION BY SYSTEM_TIME` は **boiler 側に含めない**。
+   - `PRIMARY KEY` は論理キーどおり **単一 `(id)`**（本番は複合 PK のまま）。
+   - ビジネスカラム・型・`NOT NULL`・文字セットは **`schema.sql` と一致**（版管理まわり以外）。
+   - アプリが前提とする **UNIQUE**（例: `uk_users_email`）は **`schema.sql.boiler` で明示**してよい（本番 DDL に無い制約を勝手に増やさない。増やすなら本番側も検討）。
+4. **合意した DDL を `migrations/schema.sql.boiler` にだけ反映する**。
+5. **ローカルで `make generate.boilerplate` を実行**し、**`internal/infra/mariadb/models/*.go` の Diff** を確認。問題なければ作業完了（コミットはメンバー判断）。
+
+生成 DB が空でないと init が走らない場合: `make generate.boilerplate.reset` を参照（`migrations/README.md`）。
+
+## エージェント向け禁止・注意
+
+- **`schema.sql` の System Versioning 付き DDL をそのまま sqlboiler 用 DB に流す提案だけ**にして `schema.sql.boiler` を更新しないことは避ける。
+- モデル生成物 **`internal/infra/mariadb/models/*.go` は手で書き換えない**（再生成で上書きされる）。

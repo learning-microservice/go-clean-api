@@ -1,0 +1,213 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    # --- Core Go quality (must keep) ---
+
+    # govet: Go公式の静的解析。明確なバグ候補を検出
+    - govet
+
+    # staticcheck: 実質標準の高品質解析。非推奨API/無駄コード/バグ候補を検出
+    - staticcheck
+
+    # errcheck: 戻り値errorの未処理を検出
+    - errcheck
+
+    # errorlint: errors.Is/As/%w など、モダンなエラーハンドリングを強制
+    - errorlint
+
+    # ineffassign: 使われない代入（実質バグ）を検出
+    - ineffassign
+
+    # unused: 未使用の変数/関数/型/importを検出
+    - unused
+
+    # --- Security / maintainability ---
+
+    # gosec: セキュリティ上の典型的な危険パターンを検出
+    - gosec
+
+    # revive: Goらしい書き方と可読性を保つ汎用ルール
+    - revive
+
+    # nolintlint: //nolint の乱用防止（理由・対象リンターの明示を強制）
+    - nolintlint
+
+    # --- Readability (low-noise picks) ---
+
+    # misspell: スペルミスを検出
+    - misspell
+
+    # goconst: 重複文字列/定数化できる値を検出
+    - goconst
+
+    # gocritic: 有用な指摘を幅広く出す（診断・性能・スタイル）
+    - gocritic
+
+    # predeclared: 組み込み識別子（len/error等）の上書きを検出
+    - predeclared
+
+    # makezero: スライス初期化時の意図しない容量/長さミスを検出
+    - makezero
+
+    # --- Clean Architecture guardrails ---
+
+    # depguard: import制約でレイヤー依存（クリーンアーキ）を強制
+    - depguard
+
+    # forbidigo: Error実装ルールを強制
+    - forbidigo
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+
+    errorlint:
+      errorf: true
+
+    misspell:
+      locale: US
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+
+    gocritic:
+      disabled-checks:
+        - dupImport
+        - unnecessaryBlock
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+
+    #forbidigo:
+    #  analyze-types: true
+    #  forbid:
+    #    # アプリケーションエラー実装ルール
+    #    - pattern: ^errors\.New$
+    #      msg: "Use 'go-clean-api/internal/domain/errors.[Type].New'"
+    #    - pattern: ^fmt\.Errorf$
+    #      msg: "Use 'go-clean-api/internal/domain/errors.[Type].Wrap'"
+
+    depguard:
+      rules:
+        # domainは純粋層: 外側レイヤー依存を禁止
+        domain_must_be_pure:
+          files:
+            - "**/internal/domain/**/*.go"
+          deny:
+            - pkg: "go-clean-api/internal/app/usecase"
+              desc: "domain must not depend on usecase layer"
+            - pkg: "go-clean-api/internal/app/query"
+              desc: "domain must not depend on query layer"
+            - pkg: "go-clean-api/internal/delivery"
+              desc: "domain must not depend on delivery layer"
+            - pkg: "go-clean-api/internal/infra"
+              desc: "domain must not depend on infra layer"
+            - pkg: "go-clean-api/config"
+              desc: "domain must not depend on config"
+            - pkg: "go-clean-api/pkg/*"
+              desc: "domain should avoid framework/shared pkg dependency"
+
+        # appはビジネスロジック層: delivery/infra/config依存を禁止
+        app_must_not_depend_on_outer_layers:
+          files:
+            - "**/internal/app/**/*.go"
+          deny:
+            - pkg: "go-clean-api/internal/delivery"
+              desc: "app layer must not depend on delivery layer"
+            - pkg: "go-clean-api/internal/infra/*"
+              desc: "app layer must not depend on infra layer"
+            - pkg: "go-clean-api/config"
+              desc: "app layer must not depend on config"
+            - pkg: "go-clean-api/api/openapi"
+              desc: "app must not depend on OpenAPI contract types"
+            - pkg: "github.com/labstack/echo/*"
+              desc: "app must not depend on Echo"
+
+        # deliveryからinfraへの直接依存を禁止（逆転を防ぐ）
+        delivery_must_not_depend_on_infra:
+          files:
+            - "**/internal/delivery/**/*.go"
+          deny:
+            - pkg: "go-clean-api/internal/infra"
+              desc: "delivery must not depend on infra directly"
+
+        # infraからdeliveryへの逆依存を禁止
+        infra_must_not_depend_on_delivery:
+          files:
+            - "**/internal/infra/**/*.go"
+          deny:
+            - pkg: "go-clean-api/internal/delivery"
+              desc: "infra must not depend on delivery"
+            - pkg: "go-clean-api/internal/app"
+              desc: "infra must not depend on app layer"
+
+        # configは独立層としてinternal依存を禁止
+        config_must_be_independent:
+          files:
+            - "**/config/**/*.go"
+          deny:
+            - pkg: "go-clean-api/internal"
+              desc: "config package should be independent from internal layers"
+
+        # registryは独立層としてdelivery依存を禁止
+        registry_must_not_depend_on_delivery:
+          files:
+            - "**/internal/registry/**/*.go"
+          deny:
+            - pkg: "go-clean-api/internal/delivery"
+              desc: "registry must not depend on delivery"
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - bin/
+      - third_party$
+      - builtin$
+      - examples$
+      - pkg
+    #rules:
+    #  - path: "_test.go"
+    #    linters:
+    #      - forbidigo
+
+formatters:
+  enable:
+    # gci: import順序/グループを統一
+    - gci
+
+    # gofmt: Go標準フォーマッタ（必須）
+    - gofmt
+
+    # goimports: importの追加/削除/整形を自動化
+    # gci と役割が重なるため、import順序の制御は gci に寄せる
+    #- goimports
+
+  settings:
+    gci:
+      custom-order: true
+      sections:
+        - standard
+        - default
+        - prefix(go-clean-api)
+
+  exclusions:
+    generated: lax
+    paths:
+      - bin/
+      - third_party$
+      - builtin$
+      - examples$

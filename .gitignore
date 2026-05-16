@@ -1,0 +1,16 @@
+#  Local .terraform directories
+.terraform
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# .tfvars files
+*.tfvars
+
+# backend config files
+backend.hcl
+
+# temporary
+tmp/
+work/

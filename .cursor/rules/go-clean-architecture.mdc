@@ -1,0 +1,106 @@
+---
+description: Go クリーンアーキテクチャ・コーディング規約（実装・レビュー・Lint 相当チェック）
+alwaysApply: false
+globs:
+  - internal/**
+  - cmd/**
+  - pkg/**
+---
+
+# go-clean-api — Go / アーキテクチャ規約
+
+人向けの詳細は [CONTRIBUTING.md](CONTRIBUTING.md) と各 `internal/**/doc.go`。ここはエージェントが実装・差分レビュー時に従う要約。  
+**適用（Cursor）:** `internal/**`・`cmd/**`・`pkg/**` を対象に開いているとき（`alwaysApply: false`）。
+
+## 言語・コメント
+
+- **ユーザー向けの説明・チャット回答・コード内コメントは日本語**でよい（明示的な英語 API 名・識別子はそのまま）。
+- **公開型・公開関数**には godoc を 1 行以上付ける。空コメント（`// Foo -.` のみ）は避け、何をするかを書く。
+
+## レイヤーと依存の向き
+
+```text
+delivery → app (usecase | query) → domain ← infra
+                ↑
+            registry（配線・Interceptor 合成のみ）
+```
+
+| 許可 | 禁止（例） |
+|------|------------|
+| delivery は registry 経由の `app.Interactor` だけ呼ぶ | `delivery` から `infra` / `domain` の具象を直接 import して呼ぶ |
+| usecase / query は `domain` の型とポート（Repository 等）のみ | `usecase` に Echo / `api/openapi` / sqlboiler の型 |
+| domain はフレームワーク・DB に依存しない | `domain` から `infra` / `delivery` を import |
+| infra は `domain` のポートを実装 | `infra` に HTTP やユースケースのオーケストレーション |
+
+**横断関心**
+
+- `internal/app/interceptor` … logging / validation（delivery 非依存）
+- `internal/registry/interceptor` … Tx など `sqldb` に触れる合成
+
+## CQRS・置き場所
+
+- **書き込み** → `internal/app/usecase/<機能>/` … registry の `applyStandardWithRequiredTx`（DB 更新あり）。読み取りのみのユースケースは `applyStandard`
+- **読み取り** → `internal/app/query/<リソース>/` … registry の `applyStandard`
+- **複数ユースケースのオーケストレーション** → 必要になったら `internal/app/service`（現状ほぼ未使用）
+
+## パッケージ命名
+
+- ドメイン集約は **単数形**（`domain/store/user` でなく `domain/user`）
+- ユースケースは **機能単位**（例: `usecase/auth` が `domain/user` を利用してよい）。**複数形パッケージ名 `users` は使わない**
+- `domain/user` と変数名が衝突するなら import エイリアス（例: `userdom`）や `entity` 等で回避
+
+## アプリ層（usecase / query）
+
+- 公開 API は **`Execute(ctx, …)`**。入力出力は **`Input` / `Output`**（**`Request` / `Response` は delivery + OpenAPI**）
+- ユースケースの公開型は **`type XxxUsecase = app.Interactor[*XxxInput, *XxxOutput]`** のような **型エイリアス**でよい（`ports.go` にまとめる運用可）
+- **mockgen** は `interface` 宣言のみ対象。エイリアスだけのユースケース型は Mock 生成されない → テストは **Output Port / `domain.Repository` の mock**  or **delivery 用の手書き fake**
+- 外部依存は **`ports.go` 等の interface** で宣言し、**registry で実装を注入**
+
+## delivery（HTTP）
+
+- 契約型は **`api/openapi` 生成型**。Bind → Validate → `Interactor.Execute(c.Request().Context(), …)`
+- **ビジネスルール・SQL・トランザクションは書かない**
+- エラーは **`internal/domain/errors`** を **HTTP ステータス**と **`openapi.ErrorResponse`** にマッピング
+
+## domain
+
+- 集約ごとにサブパッケージ。**エンティティ・値オブジェクト・その集約用 `Repository` interface**
+- ドメイン全体のエラー型は `domain/errors`
+
+## infra
+
+- **Repository 実装**と sqlboiler 生成物。トランザクションは **`pkg/sqldb` の `CurrentTx(ctx)`**
+- **`internal/infra/mariadb/models/*.go` は手編集禁止**（`make generate.boilerplate`）。DDL 手順は [migrations/README.md](migrations/README.md) と [.cursor/rules/sqlboiler-schema-workflow.mdc](.cursor/rules/sqlboiler-schema-workflow.mdc)
+
+## registry
+
+- **配線のみ**（[`registry.go`](../internal/registry/registry.go) + [`wire.go`](../internal/registry/wire.go)）。ビジネスロジックを持たない
+- 横断関心: `applyStandard` / `applyStandardWithRequiredTx` / `applyStandardWithRequiredNewTx`（[`wire.go`](../internal/registry/wire.go) 参照）
+- 環境差分の切り替えポイントはここに集約
+
+## セキュリティ・依存関係
+
+- **秘密情報をハードコード・コミットしない**
+- **`go.mod` に新規外部ライブラリを追加する前にチーム合意**（依頼されていない変更では勝手に追加しない）
+
+## ツール
+
+- フォーマット・Lint は **[`.golangci.yml`](.golangci.yml)**（`make format` / `make lint`）
+
+## 大きなアーキ変更時
+
+- リードの判断でプロジェクトルートの **`AGENT.md`**（または既存のエージェント用ドキュメント）の更新を提案してよい
+
+---
+
+## コードレビュー / 実装チェック（短いチェックリスト）
+
+変更差分に対し、次を確認する。
+
+1. **依存の向き**がレイヤー規約に合うか（特に `domain`・`delivery`・`usecase`）
+2. **ビジネスロジック**が `delivery` / `registry` / `infra` に漏れていないか
+3. **命名**: app 層は `Input`/`Output`、HTTP 層は OpenAPI の Request/Response
+4. **エラー**: ドメインは `domain/errors`、HTTP 変換は delivery のみ
+5. **sqlboiler モデル**を手で書いていないか
+6. **新規 `import` の外部モジュール**が無断追加になっていないか
+7. 必要なら **`make lint`** 相当の指摘（import 順・スタイル）

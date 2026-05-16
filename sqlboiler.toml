@@ -1,0 +1,12 @@
+[mysql]
+  dbname = "generatedb"
+  host   = "127.0.0.1"
+  port   = 3307
+  user   = "root"
+  pass   = "password"
+  sslmode = "false"
+
+  blacklist = [
+    "*.row_start",
+    "*.row_end",
+  ]
