@@ -179,6 +179,8 @@ linters:
       - builtin$
       - examples$
       - pkg
+      # testcontainers セットアップ用（一旦 lint 対象外）
+      - internal/infra/mariadb/main_test.go
     #rules:
     #  - path: "_test.go"
     #    linters:

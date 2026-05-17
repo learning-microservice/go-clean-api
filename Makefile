@@ -64,7 +64,7 @@ TESTS_ARGS += -race
 
 .PHONY: test
 test: ## Runs go unittest (using gotestsum)
-	@go tool gotestsum $(TESTS_ARGS) -short
+	@go tool gotestsum $(TESTS_ARGS)
 
 .PHONY: clean
 clean: ## Clean go module cache
@@ -80,6 +80,10 @@ db-up: ## Start dev MariaDB (deployments/docker-compose.yml)
 .PHONY: compose-up
 compose-up: ## Start API + MariaDB with build
 	$(COMPOSE) up --build
+
+.PHONY: compose-down
+compose-down: ## Stop API + MariaDB with build
+	$(COMPOSE) down --remove-orphans
 
 .PHONY: run
 run: ## Starts AIR ( Continuous Development restapi server).
