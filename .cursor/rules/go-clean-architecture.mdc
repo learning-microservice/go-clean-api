@@ -60,7 +60,8 @@ delivery → app (usecase | query) → domain ← infra
 
 - 契約型は **`api/openapi` 生成型**。Bind → Validate → `Interactor.Execute(c.Request().Context(), …)`
 - **ビジネスルール・SQL・トランザクションは書かない**
-- エラーは **`internal/domain/errors`** を **HTTP ステータス**と **`openapi.ErrorResponse`** にマッピング
+- **成功:** ハンドラで `c.JSON`。 **失敗:** ハンドラは **`return err` のみ**（ハンドラ内で `httperror.Encode` しない）
+- エラー JSON は **`internal/delivery/restapi/httperror`** の `Encode` を **`engine.HTTPErrorHandler`** から呼ぶ（`domain/errors` 等 → HTTP ステータス + `openapi.ErrorResponse`）
 
 ## domain
 
@@ -100,7 +101,7 @@ delivery → app (usecase | query) → domain ← infra
 1. **依存の向き**がレイヤー規約に合うか（特に `domain`・`delivery`・`usecase`）
 2. **ビジネスロジック**が `delivery` / `registry` / `infra` に漏れていないか
 3. **命名**: app 層は `Input`/`Output`、HTTP 層は OpenAPI の Request/Response
-4. **エラー**: ドメインは `domain/errors`、HTTP 変換は delivery のみ
+4. **エラー**: ドメインは `domain/errors`、ハンドラは `return err`、HTTP JSON は `httperror` + `HTTPErrorHandler` のみ
 5. **sqlboiler モデル**を手で書いていないか
 6. **新規 `import` の外部モジュール**が無断追加になっていないか
 7. 必要なら **`make lint`** 相当の指摘（import 順・スタイル）

@@ -1,30 +1,29 @@
 package validate
 
 import (
-	"fmt"
 	"strings"
 )
 
-type FieldErrors []FieldError
+type Errors []error
 
-func (e *FieldErrors) Error() string {
+func (e *Errors) Error() string {
+	if len(*e) == 0 {
+		return "unknown error"
+	}
 	var builder strings.Builder
-	if e != nil {
-		for i, err := range *e {
-			if i != 0 {
-				builder.WriteString(", ")
-			}
-			builder.WriteString(err.Error())
+	for i := range *e {
+		if i > 0 {
+			builder.WriteString(", ")
 		}
+		builder.WriteString((*e)[i].Error())
 	}
 	return builder.String()
 }
 
-type FieldError struct {
-	Field   string `json:"field,omitempty"`
-	Message string `json:"message,omitempty"`
-}
-
-func (e *FieldError) Error() string {
-	return fmt.Sprintf("field %s: %s", e.Field, e.Message)
+func (e *Errors) Unwrap() []error {
+	if len(*e) == 0 {
+		var zero []error
+		return zero
+	}
+	return *e
 }

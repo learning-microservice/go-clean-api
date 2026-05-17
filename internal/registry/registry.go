@@ -6,10 +6,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/go-playground/locales/ja"
+	translations "github.com/go-playground/validator/v10/translations/ja"
+
 	"go-clean-api/config"
 	userquery "go-clean-api/internal/app/query/user"
 	querymemory "go-clean-api/internal/app/query/user/provider/memory"
 	authuc "go-clean-api/internal/app/usecase/auth"
+	"go-clean-api/internal/domain/errors"
 	"go-clean-api/internal/infra/mariadb"
 	"go-clean-api/pkg/bcrypt"
 	"go-clean-api/pkg/jwt"
@@ -17,6 +21,8 @@ import (
 	"go-clean-api/pkg/sqldb"
 	"go-clean-api/pkg/validate"
 )
+
+var locale = ja.New()
 
 // TODO: workflow の場合は別のコンテナを作成する
 func New(cfg *config.Server) (*Registry, error) {
@@ -26,12 +32,14 @@ func New(cfg *config.Server) (*Registry, error) {
 		log.WithGlobalAttrs(
 			"app", cfg.APP.Name,
 			"version", cfg.APP.Version,
+			"env", cfg.APP.Env,
 		),
 		log.WithPretty(cfg.Log.Pretty),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup logger: %w", err)
 	}
+	slog.SetDefault(logger) // set default logger for echo request logger
 
 	// setup mariadb client
 	dbClient, err := sqldb.NewClient(cfg.DB.Address)
@@ -40,7 +48,14 @@ func New(cfg *config.Server) (*Registry, error) {
 	}
 
 	// setup validator
-	validator, err := validate.New()
+	validator, err := validate.New(
+		validate.WithTranslator(locale, translations.RegisterDefaultTranslations, true),
+		validate.WithCovertFieldError(func(field, transMessage string) error {
+			// TODO: debug log
+			logger.Info("intercepted validation error", "field", field, "message", transMessage)
+			return errors.NewFieldError(field, transMessage)
+		}),
+	)
 	if err != nil {
 		return nil, err
 	}

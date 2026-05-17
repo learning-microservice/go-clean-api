@@ -72,7 +72,7 @@ delivery → app (usecase / query) → domain ← infra
 - [ ] 5. レイヤー実装（下記 Query / Command のどちらか）
 - [ ] 6. [`internal/registry/registry.go`](internal/registry/registry.go) で配線
 - [ ] 7. [`internal/delivery/restapi/router.go`](internal/delivery/restapi/router.go) にルート登録
-- [ ] 8. ハンドラ実装（Bind / Validate / Interactor 呼び出し / エラー → HTTP）
+- [ ] 8. ハンドラ実装（Bind / Validate / Interactor 呼び出し / エラーは `return err`、成功は `c.JSON`）
 - [ ] 9. テスト追加（[テストの方針](#テストの方針)）
 - [ ] 10. `make lint` / `make test` が通ることを確認
 
@@ -130,7 +130,9 @@ internal/delivery/restapi/v1/user/me.go   # ハンドラ
 
 - `api/openapi` の型で Bind / Validate。
 - `service.Execute(c.Request().Context(), &Input{...})` を呼ぶ。
-- `domain/errors` → HTTP ステータス + `ErrorResponse` に変換。
+- **成功:** `c.JSON` で OpenAPI のレスポンス型を返す。
+- **失敗:** `return err` のみ（ハンドラ内で `httperror.Encode` は呼ばない）。
+- **エラー JSON:** [`internal/delivery/restapi/engine.go`](internal/delivery/restapi/engine.go) の `HTTPErrorHandler` が [`httperror.Encode`](internal/delivery/restapi/httperror/encoder.go) を呼び、`domain/errors` 等を HTTP ステータス + `ErrorResponse` に変換する。
 
 ### 5. router
 
@@ -191,7 +193,7 @@ registry.UsecaseSet.UserUpdateMe = updateMe
 
 ### 5. delivery + router
 
-Query の例と同様。メソッドとパスを OpenAPI と揃える。
+Query の例（§4 delivery）と同様。Bind / Validate / Execute、成功は `c.JSON`、失敗は `return err`。メソッドとパスを OpenAPI と揃える。
 
 ---
 

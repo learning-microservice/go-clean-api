@@ -7,6 +7,7 @@ import (
 type app struct {
 	Name    string
 	Version string
+	Env     string
 }
 
 func (a *app) flags() []cli.Flag {
@@ -24,6 +25,13 @@ func (a *app) flags() []cli.Flag {
 			Usage:       "Application Version",
 			Sources:     cli.EnvVars("APP_VERSION"),
 			Destination: &a.Version,
+		},
+		&cli.StringFlag{
+			Name:        "app.env",
+			Value:       "local",
+			Usage:       "Application Environment",
+			Sources:     cli.EnvVars("APP_ENV"),
+			Destination: &a.Env,
 		},
 	}
 }

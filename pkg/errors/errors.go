@@ -5,11 +5,11 @@ import (
 	"runtime"
 )
 
-func AsError(err error) *Error {
+func AsError[T any](err error) *Error[T] {
 	if err == nil {
 		return nil
 	}
-	var e *Error
+	var e *Error[T]
 	if errors.As(err, &e) {
 		return e
 	}

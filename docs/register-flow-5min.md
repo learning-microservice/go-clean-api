@@ -33,6 +33,7 @@ sequenceDiagram
     participant UC as register.go (usecase)
     participant Repo as user_repository.go (infra)
     participant DB as MariaDB
+    participant EH as HTTPErrorHandler + httperror
 
     Client->>Router: POST /v1/auth/register
     Router->>Handler: Register(usecase)
@@ -43,12 +44,19 @@ sequenceDiagram
     Repo->>DB: SQL (sqlboiler)
     DB-->>Repo: 結果
     Repo-->>UC: domain/user.User
-    UC-->>Handler: RegisterOutput (ID)
-    Handler-->>Client: 201 + JSON
+    alt 成功
+        UC-->>Handler: RegisterOutput (ID)
+        Handler-->>Client: 201 + JSON
+    else 失敗（例: 既存ユーザ）
+        UC-->>Handler: err (TypeAlreadyExists 等)
+        Handler-->>EH: return err
+        EH-->>Client: 409 + ErrorResponse JSON
+    end
 ```
 
 起動時に `registry.New` で usecase に **ログ・バリデーション・トランザクション** が自動で巻かれます（後述）。  
-アプリを書くときは **Handler → Usecase → Repository** だけ意識すれば大丈夫です。
+アプリを書くときは **Handler → Usecase → Repository** だけ意識すれば大丈夫です。  
+エラー時の JSON は **ハンドラでは書かず**、`engine.HTTPErrorHandler` が `httperror.Encode` で返します。
 
 ---
 
@@ -72,9 +80,11 @@ sequenceDiagram
 | 1 | OpenAPI 型 `RegisterRequest` に Bind |
 | 2 | Echo の Validate（形式チェック） |
 | 3 | `service.Execute(ctx, &RegisterInput{...})` を呼ぶ |
-| 4 | エラーを HTTP ステータスに変換（409 = 既存ユーザなど） |
+| 4 | 成功時は `c.JSON(201, …)`。エラー時は **`return err` のみ**（409 等の JSON は `httperror` + `HTTPErrorHandler`） |
 
-**書かないこと:** SQL、トランザクション、パスワードハッシュのロジック、重複チェックの判断。
+**書かないこと:** SQL、トランザクション、パスワードハッシュのロジック、重複チェックの判断、**ハンドラ内での `httperror.Encode`（エラー JSON の組み立て）**。
+
+エラー応答のマッピング実装: `internal/delivery/restapi/httperror/encoder.go`（`engine.go` の `HTTPErrorHandler` から呼ばれる）。
 
 `RegisterInput` は usecase 専用の型です。OpenAPI の `RegisterRequest` とフィールドを合わせて渡すだけ、と考えてください。
 
@@ -160,7 +170,8 @@ authRegisterUsecase := applyStandardWithRequiredTx("auth-register",
 | API の JSON 項目を増やす | `api/openapi/openapi.yaml` → 生成 → `delivery/.../register.go` + `usecase/.../register.go` の Input |
 | 登録ルールを変える（重複条件など） | `usecase/auth/register.go` + `register_test.go` |
 | DB カラムを増やす | `migrations/schema.sql` + `schema.sql.boiler` → sqlboiler 再生成 → `user_repository.go` |
-| レスポンス HTTP コード | `delivery/.../register.go` |
+| 成功時の HTTP コード（例: 201） | `delivery/.../register.go` の `c.JSON` |
+| エラー時の HTTP コード（例: 409） | `httperror/encoder.go`（`domain/errors` → ステータス） |
 
 ---
 
@@ -201,3 +212,4 @@ authRegisterUsecase := applyStandardWithRequiredTx("auth-register",
 - [ ] `user.New` で User を作っている
 - [ ] `user_repository.go` が domain ↔ DB を変換している
 - [ ] `registry.go` で Register usecase が登録されている
+- [ ] エラー時は handler が `return err` し、JSON は `httperror` + `HTTPErrorHandler` が返す

@@ -98,6 +98,8 @@ deployments/             ローカル用 Docker Compose 等
 api/openapi/             OpenAPI 定義・oapi-codegen 生成物
 internal/
   delivery/restapi/      HTTP ハンドラ・ルータ
+    httperror/            エラー JSON（Encode）・ログ属性（LogAttrs）
+    middleware/accesslog/ アクセスログ（RequestLogger）
   app/usecase/           書き込み系ユースケース
   app/query/             読み取り系クエリ
   app/interceptor/       ロギング・バリデーション等

@@ -2,29 +2,26 @@ package restapi
 
 import (
 	"github.com/labstack/echo/v5"
-	"github.com/labstack/echo/v5/middleware"
 
 	"go-clean-api/config"
+	"go-clean-api/internal/delivery/restapi/middleware/accesslog"
+	"go-clean-api/internal/delivery/restapi/middleware/health"
+	"go-clean-api/internal/delivery/restapi/middleware/recovery"
 	"go-clean-api/internal/delivery/restapi/v1/auth"
 	"go-clean-api/internal/registry"
 )
 
 // SetupRouter -.
-// Swagger spec:
-//
-//	@title       Go Clean Demo API
-//	@description Multi-domain clean architecture template with translation, user, and task management
-//	@version     1.0
-//	@host        localhost:8080
-//	@BasePath    /v1
-//	@securityDefinitions.apikey BearerAuth
-//	@in header
-//	@name Authorization
-func setupRouter(engine *echo.Echo, _ *config.Server, reg *registry.Registry) {
+func setupRouter(engine *echo.Echo, cfg *config.Server, reg *registry.Registry) {
 	// setup global middlewares (順序に注意！！)
 	engine.Use(
-		middleware.RequestLogger(),
-		middleware.Recover(),
+		health.New("/health",
+			health.WithApp(cfg.APP.Name),
+			health.WithVersion(cfg.APP.Version),
+			health.WithEnv(cfg.APP.Env),
+		),
+		accesslog.New(reg.Logger),
+		recovery.New(),
 	)
 
 	// setup v1 APIs

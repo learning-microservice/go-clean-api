@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"go-clean-api/internal/app"
-	"go-clean-api/internal/domain/errors"
 	"go-clean-api/pkg/validate"
 )
 
@@ -26,8 +25,23 @@ type validation[I, O any] struct {
 func (v *validation[I, O]) Execute(ctx context.Context, input I) (O, error) {
 	err := v.validator.ValidateCtx(ctx, input)
 	if err != nil {
+		// TODO: pkg/validate Errors はそのまま返却
 		var zero O
-		return zero, errors.TypeValidation.Wrap(err, "validation error")
+		return zero, err
 	}
 	return v.next.Execute(ctx, input)
 }
+
+/*
+func convertFieldErrors(errs []error) []errors.FieldError {
+	details := make([]errors.FieldError, 0, len(errs))
+	for _, e := range errs {
+		var fe errors.FieldError
+		if !goerrors.As(e, &fe) {
+			fe = errors.NewFieldError("", e.Error())
+		}
+		details = append(details, fe)
+	}
+	return details
+}
+*/

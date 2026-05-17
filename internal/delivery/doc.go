@@ -5,6 +5,8 @@
 //
 // 構成:
 //   - restapi: Echo による REST API。バージョンごとにサブパッケージを切る（例: v1/auth）。
+//   - restapi/httperror: エラー応答の JSON 化（Encode）とアクセスログ用属性（LogAttrs）。
+//   - restapi/middleware/accesslog: RequestLogger（HandleError: true で ErrorHandler 後にログ）。
 //   - API 契約の型は api/openapi（oapi-codegen 生成）を利用する。
 //
 // 例:
@@ -13,7 +15,8 @@
 // ルール:
 //   - ビジネスルール・永続化ロジックは持たない（変換と HTTP ステータス・エラー応答のマッピングのみ）。
 //   - 命名は Request/Response（OpenAPI 型）を delivery で、Input/Output は usecase/query で使い分ける。
-//   - ドメインエラー（domain/errors）は HTTP ステータスと ErrorResponse に変換して返す。
+//   - ハンドラはエラー時 return err のみ。JSON 化は restapi/engine.go の HTTPErrorHandler が httperror.Encode で行う。
+//   - ドメインエラー（domain/errors）等は httperror が HTTP ステータスと ErrorResponse にマッピングする。
 //   - usecase / query の Execute には c.Request().Context() を渡す。
-//   - domain や infra を直接参照しない（registry 経由で注入された Interactor のみ呼ぶ）。
+//   - ハンドラ（v1/auth 等）は domain や infra を直接参照しない（registry 経由の Interactor のみ呼ぶ）。
 package delivery

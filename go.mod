@@ -23,7 +23,6 @@ require (
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/golang-jwt/jwt/v5 v5.2.3
-	github.com/iancoleman/strcase v0.3.0
 	github.com/labstack/echo/v5 v5.1.1
 	github.com/oapi-codegen/runtime v1.4.0
 	github.com/simukti/sqldb-logger v0.0.0-20230108155151-646c1a075551

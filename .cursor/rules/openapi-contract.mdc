@@ -43,7 +43,7 @@ Echo では `engine.Group("v1")` に対して **`/auth/register`** のように 
 - **必須:** `type`（string）, `error`（string）
 - **任意:** `details`（`ErrorDetailItem` の配列）
 
-delivery では `domain/errors` の種別を **`Type.Name()`** などで `type` に載せ、HTTP ステータスは OpenAPI の `responses`（400 / 401 / 409 / 500 等）と一致させる。契約に無いステータスだけ返さない（追加するなら **openapi.yaml にも追記**）。
+`internal/delivery/restapi/httperror`（`encoder.go`）で `domain/errors` の種別を **`Type.Name()`** などで `type` に載せ、HTTP ステータスは OpenAPI の `responses`（400 / 401 / 409 / 500 等）と一致させる。ハンドラは `return err`、Encode は `engine.HTTPErrorHandler` のみ。契約に無いステータスだけ返さない（追加するなら **openapi.yaml にも追記**）。
 
 ## チェックリスト（差分レビュー）
 

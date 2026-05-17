@@ -10,7 +10,6 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	goValidator "github.com/go-playground/validator/v10"
 	translations "github.com/go-playground/validator/v10/translations/en"
-	"github.com/iancoleman/strcase"
 )
 
 func New(opts ...Option) (*Validator, error) {
@@ -36,10 +35,17 @@ func New(opts ...Option) (*Validator, error) {
 		}
 	}
 
-	// setup locale handler
+	// Apply default localeHandler if no option configured it
 	if validator.localeHandler == nil {
 		validator.localeHandler = func(_ context.Context) string {
 			return validator.defaultLocale
+		}
+	}
+
+	// Apply default covertFieldError if no option configured it
+	if validator.covertFieldError == nil {
+		validator.covertFieldError = func(field string, transMessage string) error {
+			return fmt.Errorf("field %s: %s", field, transMessage)
 		}
 	}
 
@@ -47,11 +53,12 @@ func New(opts ...Option) (*Validator, error) {
 }
 
 type Validator struct {
-	validate      *goValidator.Validate
-	translator    *ut.UniversalTranslator
-	fieldNames    map[string]string
-	defaultLocale string
-	localeHandler func(context.Context) string
+	validate         *goValidator.Validate
+	translator       *ut.UniversalTranslator
+	fieldNames       map[string]string
+	defaultLocale    string
+	localeHandler    func(context.Context) string
+	covertFieldError func(field string, transMessage string) error
 }
 
 func (v *Validator) Validate(input any) error {
@@ -62,7 +69,7 @@ func (v *Validator) ValidateCtx(ctx context.Context, input any) error {
 	if cause := v.validate.StructCtx(ctx, input); cause != nil {
 		validationErrors := cause.(goValidator.ValidationErrors)
 
-		errs := make(FieldErrors, len(validationErrors))
+		errs := make(Errors, len(validationErrors))
 		if errors.As(cause, &validationErrors) {
 			locale := v.localeHandler(ctx)
 			translator, found := v.translator.GetTranslator(locale)
@@ -71,10 +78,7 @@ func (v *Validator) ValidateCtx(ctx context.Context, input any) error {
 				return cause
 			}
 			for i, e := range validationErrors {
-				errs[i] = FieldError{
-					Field:   strcase.ToSnake(e.StructField()), // TODO: snake or camel case (using strcase library)
-					Message: e.Translate(translator),
-				}
+				errs[i] = v.covertFieldError(e.StructField(), e.Translate(translator))
 			}
 		}
 		return &errs
