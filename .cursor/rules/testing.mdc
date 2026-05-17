@@ -34,14 +34,15 @@ globs:
 
 ## delivery / infra
 
-- **delivery:** `httptest` と usecase の **fake**（小さな `Execute` スタブ）で HTTP と JSON を検証。
-- **infra:** 必要になったら DB integration（短期はスキップ可）。
+- **delivery:** `httptest` と usecase の **fake**（小さな `Execute` スタブ）で HTTP と JSON を検証。エラー経路は [`httperror/encoder_test.go`](../../internal/delivery/restapi/httperror/encoder_test.go) を参照。
+- **infra:** [`internal/infra/mariadb`](../../internal/infra/mariadb) は testcontainers（または `TEST_DB_ADDRESS`）。`go test -short` では `TestMain` が DB 起動をスキップする。
 
 ## 実行
 
 ```sh
-go test ./path/to/pkg/... -count=1 -race -short
-make test   # リポジトリ全体（gotestsum）
+go test ./path/to/pkg/... -count=1 -race
+go test ./internal/infra/mariadb/... -count=1 -race -short   # DB 統合をスキップ
+make test   # リポジトリ全体（gotestsum、-race）
 ```
 
 ## レビュー時

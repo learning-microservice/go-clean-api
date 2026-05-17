@@ -7,6 +7,7 @@
 
 - [レイヤーと依存の向き](#レイヤーと依存の向き)
 - [パッケージの切り方](#パッケージの切り方)
+- [エラー（domain/errors）](#エラーdomainerrors)
 - [機能追加の流れ（チェックリスト）](#機能追加の流れチェックリスト)
 - [例: 読み取り API を追加する（Query）](#例-読み取り-api-を追加するquery)
 - [例: 更新 API を追加する（Command）](#例-更新-api-を追加するcommand)
@@ -59,13 +60,43 @@ delivery → app (usecase / query) → domain ← infra
 
 ---
 
+## エラー（domain/errors）
+
+業務エラーは [`internal/domain/errors`](internal/domain/errors/errors.go) の `TypeXxx` を使います（`pkg/errors.Type[FieldError](HTTPコード, "種別名")`）。
+
+| 層 | やること |
+|----|----------|
+| **usecase / infra** | `TypeXxx.New` / `Wrap` を返す。判定は `TypeXxx.Is(err)` |
+| **domain/errors** | 新規種別と **HTTP 相当コード** をここで定義（正の定義元） |
+| **delivery / httperror** | `TypeCode()` / `TypeName()` を JSON に載せるだけ。**ステータス用 switch は書かない** |
+| **OpenAPI** | 返すステータスを `responses` に追記（契約と code を一致させる） |
+
+`validate.Errors` や `echo.HTTPError` は httperror が 400 等に正規化します（既存経路）。  
+テスト例: [`internal/delivery/restapi/httperror/encoder_test.go`](internal/delivery/restapi/httperror/encoder_test.go)。
+
+### Wrap したときの優先順位
+
+`TypeXxx.Wrap(cause, ...)` では **外側（Wrap した側）の Type が優先**されます。
+
+| 観点 | 挙動 |
+|------|------|
+| HTTP ステータス / JSON の `type` | チェーン先頭の `*Error`（外側）の `TypeCode` / `TypeName` |
+| JSON の `error` | 外側の `Message` |
+| `details` | 外側 + 内側（cause）をマージ |
+| `TypeXxx.Is(err)` | **外側の Type のみ**一致（内側の Type は `Is` では拾わない） |
+
+例: `TypeInvalidCredentials.Wrap(TypeNotFound.New(...), "…")` → クライアントには **401**（内側の 404 は出ない）。ログインで「存在しないユーザ」と「パスワード不一致」を同じ応答にそろえる意図と同じです。  
+内側の種別で判定したい場合は **Wrap せず** その Type を返すか、テストでは外側の Type で `Is` してください。
+
+---
+
 ## 機能追加の流れ（チェックリスト）
 
 新しい API を足すときは、**契約（OpenAPI）から内側へ** 進めます。
 
 ### 共通
 
-- [ ] 1. [`api/openapi/openapi.yaml`](api/openapi/openapi.yaml) に path / schema / エラー応答を追加
+- [ ] 1. [`api/openapi/openapi.yaml`](api/openapi/openapi.yaml) に path / schema / エラー応答を追加（新規 `TypeXxx` なら [エラー（domain/errors）](#エラーdomainerrors) も）
 - [ ] 2. `make generate` で [`api/openapi/openapi.gen.go`](api/openapi/openapi.gen.go) を再生成
 - [ ] 3. 必要なら `migrations/schema.sql`（と `schema.sql.boiler` のビジネスカラム）を更新 → [`migrations/README.md`](migrations/README.md) 参照
 - [ ] 4. スキーマ変更時: `make generate.boilerplate`（必要なら `.reset`）
@@ -132,7 +163,7 @@ internal/delivery/restapi/v1/user/me.go   # ハンドラ
 - `service.Execute(c.Request().Context(), &Input{...})` を呼ぶ。
 - **成功:** `c.JSON` で OpenAPI のレスポンス型を返す。
 - **失敗:** `return err` のみ（ハンドラ内で `httperror.Encode` は呼ばない）。
-- **エラー JSON:** [`internal/delivery/restapi/engine.go`](internal/delivery/restapi/engine.go) の `HTTPErrorHandler` が [`httperror.Encode`](internal/delivery/restapi/httperror/encoder.go) を呼び、`domain/errors` 等を HTTP ステータス + `ErrorResponse` に変換する。
+- **エラー JSON:** [`HTTPErrorHandler`](internal/delivery/restapi/engine.go) が [`httperror.Encode`](internal/delivery/restapi/httperror/encoder.go) を呼び、`domain/errors` の `TypeCode` / `TypeName` 等を `ErrorResponse` に載せる（[エラー（domain/errors）](#エラーdomainerrors)）。
 
 ### 5. router
 
@@ -155,7 +186,7 @@ internal/domain/user/
 ```
 
 - Repository は **集約ごと** に `domain/<集約>/repository.go` に置く。
-- エラーは [`internal/domain/errors`](internal/domain/errors) の型を使う。
+- エラーは [`internal/domain/errors`](internal/domain/errors) の `TypeXxx` を使う（[エラー（domain/errors）](#エラーdomainerrors)）。
 
 ### 2. usecase
 
@@ -253,8 +284,8 @@ mockgen の `-source` モードは **メソッドを宣言した `interface` 型
 | 対象 | 何を mock するか | 備考 |
 |------|------------------|------|
 | **usecase** | `domain` の Repository、`ports` の Hasher 等 | ユースケース本体は本実装。table-driven + **testify**（`require` / `assert`）を推奨 |
-| **delivery** | usecase の fake、またはポートのみ | HTTP ステータスと JSON 形状の固定 |
-| **infra** | 必要になったら integration（後回し可） | testcontainers / docker |
+| **delivery** | usecase の fake、またはポートのみ | HTTP ステータスと JSON 形状（例: [`httperror/encoder_test.go`](internal/delivery/restapi/httperror/encoder_test.go)） |
+| **infra** | testcontainers または `TEST_DB_ADDRESS` | [`internal/infra/mariadb/*_test.go`](internal/infra/mariadb/main_test.go)（`-short` 時は DB セットアップをスキップ） |
 
 **実装のたたき台:** [`internal/app/usecase/auth/register_test.go`](internal/app/usecase/auth/register_test.go)・[`login_test.go`](internal/app/usecase/auth/login_test.go)（`package auth_test` + gomock）。  
 Cursor 向け詳細は [`.cursor/rules/testing.mdc`](.cursor/rules/testing.mdc)（`*_test.go` 編集時）。
@@ -267,7 +298,7 @@ go generate ./internal/app/usecase/auth/...
 ```
 
 ```sh
-make test    # gotestsum（-short -race）
+make test    # gotestsum（-race）。MariaDB 統合テストは Docker または TEST_DB_ADDRESS が必要
 ```
 
 現状テストが少ない場合でも、**新規機能には usecase のユニットテストを 1 本** 付けることを推奨します。
@@ -307,6 +338,7 @@ make test
 
 - `domain` に Echo / sqlboiler / `openapi` 型を持ち込む
 - `delivery` にビジネスルールや SQL を書く
+- `httperror` にドメインエラー種別ごとの HTTP ステータス switch を書く（code は `domain/errors` で定義）
 - 学習用の過剰な抽象化（イベントソーシング、厳密 CQRS の読み書き DB 分離、DI フレームワークの導入など）
 - `internal/infra/mariadb/models/*.go` の手編集
 - **本番用の** 秘密情報のコミット（開発用プレースホルダ `your-secret-key-change-in-production` は `config` / Compose の意図的な既定値）

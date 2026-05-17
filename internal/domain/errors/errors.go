@@ -1,3 +1,8 @@
+// Package errors はドメイン全体で共有する業務エラー種別を定義する。
+// 各 TypeXxx は pkg/errors.Type[FieldError](code, name) で HTTP 相当コードと JSON の type 用文字列を持つ。
+//
+// Wrap 時は外側の Type が優先される（httperror のステータス、TypeXxx.Is の判定、JSON の type/error）。
+// 内側の code をクライアントに出したくないときに Wrap する（例: NotFound を InvalidCredentials で包む）。
 package errors
 
 import (

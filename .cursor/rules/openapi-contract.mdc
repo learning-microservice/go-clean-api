@@ -43,7 +43,9 @@ Echo では `engine.Group("v1")` に対して **`/auth/register`** のように 
 - **必須:** `type`（string）, `error`（string）
 - **任意:** `details`（`ErrorDetailItem` の配列）
 
-`internal/delivery/restapi/httperror`（`encoder.go`）で `domain/errors` の種別を **`Type.Name()`** などで `type` に載せ、HTTP ステータスは OpenAPI の `responses`（400 / 401 / 409 / 500 等）と一致させる。ハンドラは `return err`、Encode は `engine.HTTPErrorHandler` のみ。契約に無いステータスだけ返さない（追加するなら **openapi.yaml にも追記**）。
+- **HTTP ステータス・`type` 文字列の正:** [`internal/domain/errors`](../../internal/domain/errors/errors.go) の `TypeXxx = pkgErrors.Type[FieldError](code, "name")`（例: 409 + `"already exists"`）。
+- **delivery:** [`httperror/encoder.go`](../../internal/delivery/restapi/httperror/encoder.go) は `TypeCode()` / `TypeName()` を JSON に載せるだけ（ステータス用の switch は書かない）。
+- ハンドラは `return err`、Encode は `engine.HTTPErrorHandler` のみ。契約に無いステータスだけ返さない（新規 Type を足すなら **openapi.yaml の `responses` にも追記**）。
 
 ## チェックリスト（差分レビュー）
 

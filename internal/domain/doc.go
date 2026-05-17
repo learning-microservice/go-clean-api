@@ -11,5 +11,5 @@
 //   - infra の実装詳細や delivery の transport 型に依存しない。
 //   - 永続化や外部通信は、各集約の Repository インターフェース経由で抽象化し、実装は infra に置く。
 //   - ドメイン概念に関する語彙・制約・不変条件を、対応する集約パッケージに集約する。
-//   - エラーは domain/errors で定義した型を用いて表現する。
+//   - エラーは domain/errors の TypeXxx（pkg/errors.Type[FieldError](code, name)）で表現する。HTTP 相当コードはここで定義する。
 package domain

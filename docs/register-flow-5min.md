@@ -1,6 +1,6 @@
-# 5 分で追う Register の道順
+# 5 分で追う Register API の道順
 
-MVC 経験がある方向けに、**ユーザ登録（`POST /v1/auth/register`）** だけをたどるガイドです。  
+MVC 経験がある方向けに、**ユーザ登録API（`POST /v1/auth/register`）** だけをたどるガイドです。  
 クリーンアーキテクチャの用語は最小限にし、「どのファイルに何を書くか」が分かれば十分です。
 
 ## このリポジトリの置き換え表（MVC との対応）
@@ -84,7 +84,7 @@ sequenceDiagram
 
 **書かないこと:** SQL、トランザクション、パスワードハッシュのロジック、重複チェックの判断、**ハンドラ内での `httperror.Encode`（エラー JSON の組み立て）**。
 
-エラー応答のマッピング実装: `internal/delivery/restapi/httperror/encoder.go`（`engine.go` の `HTTPErrorHandler` から呼ばれる）。
+エラー応答: `domain/errors` の `TypeXxx` に HTTP コードを持たせ、[`httperror/encoder.go`](../internal/delivery/restapi/httperror/encoder.go) が `TypeCode` / `TypeName` を JSON に載せる（`HTTPErrorHandler` から `Encode`）。
 
 `RegisterInput` は usecase 専用の型です。OpenAPI の `RegisterRequest` とフィールドを合わせて渡すだけ、と考えてください。
 
@@ -171,7 +171,7 @@ authRegisterUsecase := applyStandardWithRequiredTx("auth-register",
 | 登録ルールを変える（重複条件など） | `usecase/auth/register.go` + `register_test.go` |
 | DB カラムを増やす | `migrations/schema.sql` + `schema.sql.boiler` → sqlboiler 再生成 → `user_repository.go` |
 | 成功時の HTTP コード（例: 201） | `delivery/.../register.go` の `c.JSON` |
-| エラー時の HTTP コード（例: 409） | `httperror/encoder.go`（`domain/errors` → ステータス） |
+| エラー時の HTTP コード（例: 409） | `domain/errors` の `TypeXxx` 定義（code）＋ OpenAPI `responses` |
 
 ---
 

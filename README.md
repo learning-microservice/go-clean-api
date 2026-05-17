@@ -67,13 +67,19 @@ curl -s -X POST http://localhost:8080/v1/auth/login \
 
 ## アーキテクチャ
 
-依存の向きは外側から内側へ。**ドメインはフレームワーク・DB に依存しません**。
+**外側 → 内側** に依存します。domain はフレームワーク・DB・OpenAPI に依存しません。
 
-```text
-delivery (HTTP / Echo)
-    → app (usecase / query, interceptor)
-        → domain (集約・Repository ポート・エラー)
-            ← infra (MariaDB / sqlboiler モデル等)
+```mermaid
+flowchart TB
+  delivery["delivery<br/>HTTP · Echo · OpenAPI"]
+  app["app<br/>usecase · query · interceptor"]
+  domain["domain<br/>集約 · Repository · errors"]
+  infra["infra<br/>MariaDB · sqlboiler"]
+  registry["registry<br/>DI · 配線"]
+
+  delivery --> app --> domain
+  infra -.->|implements| domain
+  registry -.-> delivery & app & infra
 ```
 
 | レイヤ | 役割 | 主なパス |
@@ -92,22 +98,27 @@ delivery (HTTP / Echo)
 ## ディレクトリ構成（抜粋）
 
 ```text
-cmd/app/                 CLI エントリ（server / workflow）
-config/                  設定（フラグ・環境変数）
-deployments/             ローカル用 Docker Compose 等
-api/openapi/             OpenAPI 定義・oapi-codegen 生成物
-internal/
-  delivery/restapi/      HTTP ハンドラ・ルータ
-    httperror/            エラー JSON（Encode）・ログ属性（LogAttrs）
-    middleware/accesslog/ アクセスログ（RequestLogger）
-  app/usecase/           書き込み系ユースケース
-  app/query/             読み取り系クエリ
-  app/interceptor/       ロギング・バリデーション等
-  domain/                ドメイン（集約・errors）
-  infra/mariadb/         Repository 実装・sqlboiler models
-  registry/              依存性注入
-migrations/              DDL（本番用 schema.sql / 生成用 schema.sql.boiler）
-pkg/                     共有ライブラリ
+go-clean-api/
+├── cmd/app/                         # CLI（server / workflow）
+├── config/                          # 設定（フラグ・環境変数）
+├── deployments/                     # ローカル Docker Compose 等
+├── api/openapi/                     # OpenAPI 定義・oapi-codegen 生成物
+├── migrations/                      # DDL（schema.sql / schema.sql.boiler）
+├── pkg/                             # 横断ユーティリティ（errors, sqldb, jwt …）
+└── internal/
+    ├── delivery/restapi/            # HTTP ハンドラ・ルータ
+    │   ├── httperror/               #   エラー JSON（Encode）・LogAttrs
+    │   ├── middleware/accesslog/    #   アクセスログ
+    │   └── v1/auth/                 #   認証 API ハンドラ
+    ├── app/
+    │   ├── usecase/                 #   書き込み（Command）
+    │   ├── query/                   #   読み取り（Query）
+    │   └── interceptor/             #   ログ・バリデーション
+    ├── domain/
+    │   ├── errors/                  #   業務エラー種別（TypeCode 定義）
+    │   └── user/                    #   集約・Repository ポート
+    ├── infra/mariadb/               #   Repository 実装・sqlboiler models
+    └── registry/                    #   DI・Interceptor 合成
 ```
 
 ## API 仕様
@@ -142,7 +153,7 @@ CLI フラグと環境変数の両方で指定できます（未指定時はデ�
 make help          # 一覧
 make lint          # golangci-lint
 make format        # フォーマット
-make test          # ユニットテスト（gotestsum）
+make test          # テスト（gotestsum、-race）。MariaDB 統合は Docker 等が必要
 make generate      # go generate（OpenAPI 型など）
 make generate.boilerplate        # sqlboiler モデル生成
 make generate.boilerplate.reset  # 生成用 DB を作り直してから生成

@@ -16,7 +16,7 @@
 //   - ビジネスルール・永続化ロジックは持たない（変換と HTTP ステータス・エラー応答のマッピングのみ）。
 //   - 命名は Request/Response（OpenAPI 型）を delivery で、Input/Output は usecase/query で使い分ける。
 //   - ハンドラはエラー時 return err のみ。JSON 化は restapi/engine.go の HTTPErrorHandler が httperror.Encode で行う。
-//   - ドメインエラー（domain/errors）等は httperror が HTTP ステータスと ErrorResponse にマッピングする。
+//   - ドメインエラー（domain/errors）は TypeCode / TypeName を httperror が JSON に載せる（ステータス switch は delivery に置かない）。
 //   - usecase / query の Execute には c.Request().Context() を渡す。
 //   - ハンドラ（v1/auth 等）は domain や infra を直接参照しない（registry 経由の Interactor のみ呼ぶ）。
 package delivery

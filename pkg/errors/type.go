@@ -12,6 +12,7 @@ func Type[T any](code int, name string) ErrorType[T] {
 	}
 }
 
+// New は message と details を持つ業務エラーを生成する。
 func (t ErrorType[T]) New(message string, details ...T) *Error[T] {
 	return &Error[T]{
 		errType: t,
@@ -22,6 +23,8 @@ func (t ErrorType[T]) New(message string, details ...T) *Error[T] {
 	}
 }
 
+// Wrap は cause を包み、呼び出し元の ErrorType を付与する。
+// HTTP ステータス・TypeName・Type.Is の判定は外側の Type が優先される（cause の TypeCode は httperror では使われない）。
 func (t ErrorType[T]) Wrap(cause error, message string, details ...T) *Error[T] {
 	return &Error[T]{
 		errType: t,
