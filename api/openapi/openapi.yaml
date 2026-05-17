@@ -28,7 +28,7 @@ paths:
               default:
                 value:
                   name: yuki kawamura
-                  email: yuki.kawamura@bulls.com
+                  email: yuki.kawamura@example.com
                   password: xxxxxxxxxxxx
       responses:
         "201":
@@ -75,7 +75,7 @@ paths:
             examples:
               default:
                 value:
-                  email: yuki.kawamura@bulls.com
+                  email: yuki.kawamura@example.com
                   password: xxxxxxxxxxxx
       responses:
         "200":
@@ -121,7 +121,7 @@ components:
         email:
           type: string
           format: email
-          example: yuki.kawamura@bulls.com
+          example: yuki.kawamura@example.com
         password:
           type: string
           format: password
@@ -146,7 +146,7 @@ components:
         email:
           type: string
           format: email
-          example: yuki.kawamura@bulls.com
+          example: yuki.kawamura@example.com
         password:
           type: string
           format: password
