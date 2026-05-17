@@ -72,9 +72,6 @@ func New(cfg *config.Server) (*Registry, error) {
 	bcryptVerifier := bcrypt.NewVerifier()
 	bcryptHasher := bcrypt.NewHasher()
 
-	// setup repositories
-	userRepo := mariadb.NewUserRepository(dbClient)
-
 	// setup dependencies for wire
 	deps := &deps{
 		dbClient:  dbClient,
@@ -82,6 +79,9 @@ func New(cfg *config.Server) (*Registry, error) {
 		logger:    logger,
 		nowFunc:   time.Now,
 	}
+
+	// setup repositories
+	userRepo := mariadb.NewUserRepository(dbClient)
 
 	// setup query services
 	// ユーザ検索はトランザクションを必要としないので applyStandard を使用
