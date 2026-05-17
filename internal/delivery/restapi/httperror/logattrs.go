@@ -10,15 +10,22 @@ import (
 	"go-clean-api/pkg/validate"
 )
 
-func LogAttrs(err error) []slog.Attr {
+func LogAttrs(status int, err error) []slog.Attr {
 	if err == nil {
 		return nil
 	}
 
 	// handle domain error
 	if de := errors.AsError(err); de != nil {
+		if status >= 500 {
+			return []slog.Attr{
+				slog.String("error_type", de.TypeName()),
+				slog.String("error_message", de.Message()),
+				slog.Any("error_stack", de.StackFrames()),
+			}
+		}
 		return []slog.Attr{
-			slog.String("error_type", de.Type()),
+			slog.String("error_type", de.TypeName()),
 			slog.String("error_message", de.Message()),
 		}
 	}

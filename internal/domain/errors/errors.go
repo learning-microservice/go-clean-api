@@ -9,16 +9,16 @@ import (
 )
 
 var (
-	TypeValidation         = pkgErrors.Type[FieldError]("validation error")
-	TypeInvalidCredentials = pkgErrors.Type[FieldError]("invalid credentials")
-	TypeUnauthenticated    = pkgErrors.Type[FieldError]("unauthenticated")
-	TypeForbidden          = pkgErrors.Type[FieldError]("forbidden")
-	TypeNotFound           = pkgErrors.Type[FieldError]("not found")
-	TypeAlreadyExists      = pkgErrors.Type[FieldError]("already exists")
-	TypeInitialization     = pkgErrors.Type[FieldError]("initialization error")
-	TypeUnexpected         = pkgErrors.Type[FieldError]("unexpected")
-	TypeUnavailable        = pkgErrors.Type[FieldError]("unavailable")
-	TypeTimeout            = pkgErrors.Type[FieldError]("timeout")
+	TypeValidation         = pkgErrors.Type[FieldError](400, "validation error")
+	TypeInvalidCredentials = pkgErrors.Type[FieldError](401, "invalid credentials")
+	TypeUnauthenticated    = pkgErrors.Type[FieldError](401, "unauthenticated")
+	TypeForbidden          = pkgErrors.Type[FieldError](403, "forbidden")
+	TypeNotFound           = pkgErrors.Type[FieldError](404, "not found")
+	TypeAlreadyExists      = pkgErrors.Type[FieldError](409, "already exists")
+	TypeInitialization     = pkgErrors.Type[FieldError](500, "initialization error")
+	TypeUnexpected         = pkgErrors.Type[FieldError](500, "unexpected")
+	TypeUnavailable        = pkgErrors.Type[FieldError](503, "unavailable")
+	TypeTimeout            = pkgErrors.Type[FieldError](504, "timeout")
 )
 
 func AsError(err error) *pkgErrors.Error[FieldError] {

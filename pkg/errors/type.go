@@ -1,33 +1,49 @@
 package errors
 
-type Type[T any] string
+type ErrorType[T any] struct {
+	code int
+	name string
+}
 
-func (t Type[T]) New(message string, details ...T) *Error[T] {
+func Type[T any](code int, name string) ErrorType[T] {
+	return ErrorType[T]{
+		code: code,
+		name: name,
+	}
+}
+
+func (t ErrorType[T]) New(message string, details ...T) *Error[T] {
 	return &Error[T]{
 		errType: t,
 		message: message,
 		details: details,
-		stack:   captureStack(4),
+		// skip=3: runtime.Callers → captureStack → Type.New の次（New の呼び出し元）から記録
+		stack: captureStack(3),
 	}
 }
 
-func (t Type[T]) Wrap(cause error, message string, details ...T) *Error[T] {
+func (t ErrorType[T]) Wrap(cause error, message string, details ...T) *Error[T] {
 	return &Error[T]{
 		errType: t,
 		cause:   cause,
 		message: message,
 		details: details,
-		stack:   captureStack(4),
+		// skip=3: runtime.Callers → captureStack → Type.Wrap の次（Wrap の呼び出し元）から記録
+		stack: captureStack(3),
 	}
 }
 
-func (t Type[T]) Is(err error) bool {
+func (t ErrorType[T]) Is(err error) bool {
 	if e := AsError[T](err); e != nil {
-		return e.errType == t
+		return t.equals(e.errType)
 	}
 	return false
 }
 
-func (t Type[T]) Name() string {
-	return string(t)
+func (t ErrorType[T]) Name() string {
+	return t.name
+}
+
+func (t ErrorType[T]) equals(target ErrorType[T]) bool {
+	return t.code == target.code && t.name == target.name
 }

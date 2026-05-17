@@ -6,7 +6,7 @@ import (
 )
 
 type Error[T any] struct {
-	errType Type[T]
+	errType ErrorType[T]
 	message string
 	details []T
 	attrs   []any
@@ -19,9 +19,9 @@ func (e *Error[T]) Error() string {
 		e.message = "unknown error"
 	}
 	if e.cause != nil {
-		return fmt.Sprintf("[%s] %s: %v", e.errType, e.message, e.cause)
+		return fmt.Sprintf("[%s] %s: %v", e.errType.name, e.message, e.cause)
 	}
-	return fmt.Sprintf("[%s] %s", e.errType, e.message)
+	return fmt.Sprintf("[%s] %s", e.errType.name, e.message)
 }
 
 func (e *Error[T]) Unwrap() error {
@@ -30,8 +30,12 @@ func (e *Error[T]) Unwrap() error {
 	return e.cause
 }
 
-func (e *Error[T]) Type() string {
-	return string(e.errType)
+func (e *Error[T]) TypeCode() int {
+	return e.errType.code
+}
+
+func (e *Error[T]) TypeName() string {
+	return e.errType.name
 }
 
 func (e *Error[T]) Message() string {
@@ -53,13 +57,9 @@ func (e *Error[T]) Attrs() []any {
 
 func (e *Error[T]) Is(target error) bool {
 	if err := AsError[T](target); err != nil {
-		return e.errType == err.errType
+		return e.errType.equals(err.errType)
 	}
 	return false
-}
-
-func (e *Error[T]) StackTrace() []uintptr {
-	return e.stack
 }
 
 func (e *Error[T]) MarshalJSON() ([]byte, error) {
@@ -68,7 +68,7 @@ func (e *Error[T]) MarshalJSON() ([]byte, error) {
 		Message string `json:"message"`
 		Details []T    `json:"details,omitempty"`
 	}{
-		Type:    string(e.errType),
+		Type:    e.errType.name,
 		Message: e.message,
 		Details: e.Details(),
 	})

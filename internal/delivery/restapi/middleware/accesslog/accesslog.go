@@ -83,7 +83,7 @@ func New(logger *slog.Logger) echo.MiddlewareFunc {
 			}
 
 			// handle error attributes
-			attrs := httperror.LogAttrs(v.Error)
+			attrs := httperror.LogAttrs(v.Status, v.Error)
 			logAttrs = slices.Concat(logAttrs, attrs)
 
 			// handle http status

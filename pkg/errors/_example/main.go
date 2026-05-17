@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	TypeValidation = errors.Type[FieldError]("validation error")
-	TypeNotFound   = errors.Type[FieldError]("not found")
+	TypeValidation = errors.Type[FieldError](400, "validation error")
+	TypeNotFound   = errors.Type[FieldError](404, "not found")
 )
 
 func main() {
