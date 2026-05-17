@@ -99,26 +99,27 @@ flowchart TB
 
 ```text
 go-clean-api/
+├── api/openapi/                     # OpenAPI 定義・oapi-codegen 生成物
 ├── cmd/app/                         # CLI（server / workflow）
 ├── config/                          # 設定（フラグ・環境変数）
 ├── deployments/                     # ローカル Docker Compose 等
-├── api/openapi/                     # OpenAPI 定義・oapi-codegen 生成物
+├── internal/
+│   ├── app/
+│   │   ├── interceptor/             # ログ・バリデーション
+│   │   ├── query/                   # 読み取り（Query）
+│   │   └── usecase/                 # 書き込み（Command）
+│   ├── delivery/restapi/            # HTTP ハンドラ・ルータ
+│   │   ├── httperror/               # エラー JSON（Encode）・LogAttrs
+│   │   ├── middleware/accesslog/    # アクセスログ
+│   │   └── v1/auth/                 # 認証 API ハンドラ
+│   ├── domain/
+│   │   ├── errors/                  # 業務エラー種別（TypeCode 定義）
+│   │   └── user/                    # 集約・Repository ポート
+│   ├── infra/mariadb/               # Repository 実装
+│   │   └── models/                  # sqlboiler 自動生成（手編集禁止）
+│   └── registry/                    # DI・Interceptor 合成
 ├── migrations/                      # DDL（schema.sql / schema.sql.boiler）
-├── pkg/                             # 横断ユーティリティ（errors, sqldb, jwt …）
-└── internal/
-    ├── delivery/restapi/            # HTTP ハンドラ・ルータ
-    │   ├── httperror/               #   エラー JSON（Encode）・LogAttrs
-    │   ├── middleware/accesslog/    #   アクセスログ
-    │   └── v1/auth/                 #   認証 API ハンドラ
-    ├── app/
-    │   ├── usecase/                 #   書き込み（Command）
-    │   ├── query/                   #   読み取り（Query）
-    │   └── interceptor/             #   ログ・バリデーション
-    ├── domain/
-    │   ├── errors/                  #   業務エラー種別（TypeCode 定義）
-    │   └── user/                    #   集約・Repository ポート
-    ├── infra/mariadb/               #   Repository 実装・sqlboiler models
-    └── registry/                    #   DI・Interceptor 合成
+└── pkg/                             # 横断ユーティリティ（errors, sqldb, jwt …）
 ```
 
 ## API 仕様
