@@ -38,9 +38,9 @@ func WithFieldNameMap(locale string, fieldNames map[string]string) Option {
 	}
 }
 
-func WithCovertFieldError(covertFieldError func(field string, transMessage string) error) Option {
+func WithConvertFieldError(convertFieldError func(field string, transMessage string) error) Option {
 	return func(v *Validator) error {
-		v.covertFieldError = covertFieldError
+		v.convertFieldError = convertFieldError
 		return nil
 	}
 }

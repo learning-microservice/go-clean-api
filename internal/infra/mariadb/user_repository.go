@@ -60,7 +60,9 @@ func (r *userRepository) Save(ctx context.Context, entity *user.User) (user.ID, 
 
 	if model.ID == 0 {
 		if err := model.Insert(ctx, tx, boil.Infer()); err != nil {
-			// TODO: 実際はベンダエラーコードをチェックし、エラーを返却
+			if r.client.IsDuplicateKeyError(err) {
+				return 0, errors.TypeAlreadyExists.New("user already registered")
+			}
 			return 0, errors.TypeUnexpected.Wrap(err, "failed to insert user")
 		}
 	} else {

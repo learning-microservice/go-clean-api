@@ -25,13 +25,6 @@ func TestRegisterUsecase_Execute(t *testing.T) {
 		password = "plain-password"
 	)
 
-	existingUser := user.Reconstruct(
-		user.NewID(1),
-		name,
-		email,
-		[]byte("stored-hash"),
-	)
-
 	input := &auth.RegisterInput{
 		Name:          name,
 		Email:         email,
@@ -49,8 +42,6 @@ func TestRegisterUsecase_Execute(t *testing.T) {
 		{
 			name: "成功するとユーザーIDが返る",
 			arrange: func(repo *usermocks.MockRepository, hasher *mockauth.MockPasswordHasher) {
-				repo.EXPECT().FindByEmail(gomock.Any(), email).
-					Return(nil, domainerrors.TypeNotFound.New("user not found"))
 				hasher.EXPECT().Hash(password).Return([]byte("hashed"), nil)
 				repo.EXPECT().Save(gomock.Any(), gomock.Any()).
 					Return(user.NewID(42), nil)
@@ -63,8 +54,10 @@ func TestRegisterUsecase_Execute(t *testing.T) {
 		},
 		{
 			name: "既に登録済みの場合は重複エラー",
-			arrange: func(repo *usermocks.MockRepository, _ *mockauth.MockPasswordHasher) {
-				repo.EXPECT().FindByEmail(gomock.Any(), email).Return(existingUser, nil)
+			arrange: func(repo *usermocks.MockRepository, hasher *mockauth.MockPasswordHasher) {
+				hasher.EXPECT().Hash(password).Return([]byte("hashed"), nil)
+				repo.EXPECT().Save(gomock.Any(), gomock.Any()).
+					Return(user.ID(0), domainerrors.TypeAlreadyExists.New("user already registered"))
 			},
 			assert: func(t *testing.T, out *auth.RegisterOutput, err error) {
 				require.Error(t, err)
@@ -73,23 +66,8 @@ func TestRegisterUsecase_Execute(t *testing.T) {
 			},
 		},
 		{
-			name: "メール検索で予期しないエラーはそのまま返す",
-			arrange: func(repo *usermocks.MockRepository, _ *mockauth.MockPasswordHasher) {
-				repo.EXPECT().FindByEmail(gomock.Any(), email).
-					Return(nil, errors.New("database unavailable"))
-			},
-			assert: func(t *testing.T, out *auth.RegisterOutput, err error) {
-				require.Error(t, err)
-				assert.Nil(t, out)
-				assert.False(t, domainerrors.TypeNotFound.Is(err))
-				assert.False(t, domainerrors.TypeAlreadyExists.Is(err))
-			},
-		},
-		{
 			name: "ハッシュ化失敗は予期しないエラー",
-			arrange: func(repo *usermocks.MockRepository, hasher *mockauth.MockPasswordHasher) {
-				repo.EXPECT().FindByEmail(gomock.Any(), email).
-					Return(nil, domainerrors.TypeNotFound.New("user not found"))
+			arrange: func(_ *usermocks.MockRepository, hasher *mockauth.MockPasswordHasher) {
 				hasher.EXPECT().Hash(password).Return(nil, errors.New("hash error"))
 			},
 			assert: func(t *testing.T, out *auth.RegisterOutput, err error) {
@@ -101,8 +79,6 @@ func TestRegisterUsecase_Execute(t *testing.T) {
 		{
 			name: "保存失敗は予期しないエラー",
 			arrange: func(repo *usermocks.MockRepository, hasher *mockauth.MockPasswordHasher) {
-				repo.EXPECT().FindByEmail(gomock.Any(), email).
-					Return(nil, domainerrors.TypeNotFound.New("user not found"))
 				hasher.EXPECT().Hash(password).Return([]byte("hashed"), nil)
 				repo.EXPECT().Save(gomock.Any(), gomock.Any()).
 					Return(user.ID(0), errors.New("insert failed"))

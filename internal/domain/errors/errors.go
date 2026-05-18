@@ -34,31 +34,37 @@ func Is(err, target error) bool {
 	return goerrors.Is(err, target)
 }
 
-type FieldError struct {
+type FieldError interface {
+	Field() string
+	Message() string
+	Error() string
+}
+
+type fieldError struct {
 	field   string
 	message string
 }
 
 func NewFieldError(field, message string) FieldError {
-	return FieldError{
+	return fieldError{
 		field:   field,
 		message: message,
 	}
 }
 
-func (e FieldError) Field() string {
+func (e fieldError) Field() string {
 	return e.field
 }
 
-func (e FieldError) Message() string {
+func (e fieldError) Message() string {
 	return e.message
 }
 
-func (e FieldError) Error() string {
+func (e fieldError) Error() string {
 	return fmt.Sprintf("field %s: %s", e.field, e.message)
 }
 
-func (e FieldError) MarshalJSON() ([]byte, error) {
+func (e fieldError) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		Field   string `json:"field,omitempty"`
 		Message string `json:"message"`

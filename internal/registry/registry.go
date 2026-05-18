@@ -50,7 +50,7 @@ func New(cfg *config.Server) (*Registry, error) {
 	// setup validator
 	validator, err := validate.New(
 		validate.WithTranslator(locale, translations.RegisterDefaultTranslations, true),
-		validate.WithCovertFieldError(func(field, transMessage string) error {
+		validate.WithConvertFieldError(func(field, transMessage string) error {
 			// TODO: debug log
 			logger.Info("intercepted validation error", "field", field, "message", transMessage)
 			return errors.NewFieldError(field, transMessage)

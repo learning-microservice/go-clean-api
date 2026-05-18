@@ -39,11 +39,12 @@ sequenceDiagram
     Router->>Handler: Register(usecase)
     Note over Handler: Bind / Validate (OpenAPI型)
     Handler->>UC: Execute(RegisterInput)
-    Note over UC: 重複チェック / Hash / user.New
-    UC->>Repo: FindByEmail / Save
-    Repo->>DB: SQL (sqlboiler)
-    DB-->>Repo: 結果
-    Repo-->>UC: domain/user.User
+    Note over UC: Hash / user.New
+    UC->>Repo: Save
+    Repo->>DB: INSERT (sqlboiler)
+    Note over Repo,DB: email UNIQUE 違反時 1062
+    DB-->>Repo: 結果 or 重複エラー
+    Repo-->>UC: ID or TypeAlreadyExists
     alt 成功
         UC-->>Handler: RegisterOutput (ID)
         Handler-->>Client: 201 + JSON
@@ -82,7 +83,7 @@ sequenceDiagram
 | 3 | `service.Execute(ctx, &RegisterInput{...})` を呼ぶ |
 | 4 | 成功時は `c.JSON(201, …)`。エラー時は **`return err` のみ**（409 等の JSON は `httperror` + `HTTPErrorHandler`） |
 
-**書かないこと:** SQL、トランザクション、パスワードハッシュのロジック、重複チェックの判断、**ハンドラ内での `httperror.Encode`（エラー JSON の組み立て）**。
+**書かないこと:** SQL、トランザクション、パスワードハッシュのロジック、**メール重複の検知**（DB 制約 + infra の `Save`）、**ハンドラ内での `httperror.Encode`（エラー JSON の組み立て）**。
 
 エラー応答: `domain/errors` の `TypeXxx` に HTTP コードを持たせ、[`httperror/encoder.go`](../internal/delivery/restapi/httperror/encoder.go) が `TypeCode` / `TypeName` を JSON に載せる（`HTTPErrorHandler` から `Encode`）。
 
@@ -97,16 +98,15 @@ sequenceDiagram
 おおまかな流れ:
 
 ```
-1. userRepo.FindByEmail(email)
-2. 既にいれば TypeAlreadyExists エラー
-3. hasher.Hash(平文パスワード)
-4. user.New(name, email, hash) でドメインの User を作る
-5. userRepo.Save(ctx, entity) → 新しい ID
-6. RegisterOutput{ID} を返す
+1. hasher.Hash(平文パスワード)
+2. user.New(name, email, hash) でドメインの User を作る
+3. userRepo.Save(ctx, entity) → 新しい ID
+   ※ メール重複は DB の UNIQUE 制約で検知（infra が TypeAlreadyExists に変換）
+4. RegisterOutput{ID} を返す
 ```
 
-**書く場所:** 「登録済みか」「どういう順で保存するか」などの**手順**。  
-**書かない場所:** HTTP ステータス、JSON タグ、sqlboiler の型。
+**書く場所:** ハッシュ → エンティティ作成 → 保存、という**手順**。  
+**書かない場所:** HTTP ステータス、JSON タグ、sqlboiler の型、**重複判定の SQL 詳細**（infra の `Save` に任せる）。
 
 テスト例: `internal/app/usecase/auth/register_test.go`（Repository を mock して `Execute` だけ検証）。
 
@@ -130,8 +130,9 @@ DB から読み直すときは **`user.Reconstruct(...)`** です。
 
 - `domain/user.Repository` を実装している
 - 中では sqlboiler の `models.User` を使う
-- `FindByEmail` → `user.Reconstruct` で domain に戻す
-- `Save` → domain から `models.User` に詰め替えて Insert / Update
+- `FindByEmail` → `user.Reconstruct` で domain に戻す（ログイン等で利用。Register では呼ばない）
+- `Save`（Register）→ domain から `models.User` に詰め替えて **Insert**
+  - `email` の UNIQUE 違反（MariaDB 1062）を `pkg/sqldb` の `IsDuplicateKeyError` で検知し、`TypeAlreadyExists` を返す
 
 **sqlboiler の生成コード**（`internal/infra/mariadb/models/*.go`）は **手編集しない**。  
 スキーマ変更時は `make generate.boilerplate`（詳細は `migrations/README.md`）。
@@ -168,7 +169,7 @@ authRegisterUsecase := applyStandardWithRequiredTx("auth-register",
 | 変更内容 | 触るファイル |
 |----------|----------------|
 | API の JSON 項目を増やす | `api/openapi/openapi.yaml` → 生成 → `delivery/.../register.go` + `usecase/.../register.go` の Input |
-| 登録ルールを変える（重複条件など） | `usecase/auth/register.go` + `register_test.go` |
+| 登録ルールを変える（重複条件など） | `usecase/auth/register.go` + `infra/mariadb/user_repository.go` + `register_test.go` |
 | DB カラムを増やす | `migrations/schema.sql` + `schema.sql.boiler` → sqlboiler 再生成 → `user_repository.go` |
 | 成功時の HTTP コード（例: 201） | `delivery/.../register.go` の `c.JSON` |
 | エラー時の HTTP コード（例: 409） | `domain/errors` の `TypeXxx` 定義（code）＋ OpenAPI `responses` |
@@ -176,6 +177,12 @@ authRegisterUsecase := applyStandardWithRequiredTx("auth-register",
 ---
 
 ## よくある質問
+
+### Q. 重複チェックは usecase でやらないの？
+
+Register では **先に SELECT せず**、`Save` の INSERT に任せています。  
+`users.email` に UNIQUE 制約があり、重複時は MariaDB がエラーを返す → infra が `TypeAlreadyExists` に変換 → usecase はそのまま返す、という流れです。  
+レース条件を避けつつ、重複検知を DB に一本化するための設計です。
 
 ### Q. usecase と query の違いは？
 
@@ -209,7 +216,7 @@ authRegisterUsecase := applyStandardWithRequiredTx("auth-register",
 - [ ] `router.go` から `register.go`（delivery）に到達できる
 - [ ] delivery が `RegisterInput` を作って `Execute` している
 - [ ] usecase が `user.Repository` だけを使っている（sqlboiler を import していない）
-- [ ] `user.New` で User を作っている
-- [ ] `user_repository.go` が domain ↔ DB を変換している
+- [ ] `user.New` で User を作り、`Save` だけで永続化している（Register で `FindByEmail` は使わない）
+- [ ] `user_repository.go` の `Save` が INSERT 重複を `TypeAlreadyExists` に変換している
 - [ ] `registry.go` で Register usecase が登録されている
 - [ ] エラー時は handler が `return err` し、JSON は `httperror` + `HTTPErrorHandler` が返す

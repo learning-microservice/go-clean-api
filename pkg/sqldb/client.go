@@ -67,6 +67,14 @@ func (c *Client) CurrentTx(ctx context.Context) DB {
 	return c.db
 }
 
+func (c *Client) IsDuplicateKeyError(err error) bool {
+	return errorCode(err) == ErrCodeDuplicateKey
+}
+
+func (c *Client) IsForeignKeyError(err error) bool {
+	return errorCode(err) == ErrCodeForeignKey
+}
+
 func (c *Client) Close() error {
 	return c.db.Close()
 }

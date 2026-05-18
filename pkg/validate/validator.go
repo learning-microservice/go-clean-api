@@ -43,9 +43,12 @@ func New(opts ...Option) (*Validator, error) {
 	}
 
 	// Apply default covertFieldError if no option configured it
-	if validator.covertFieldError == nil {
-		validator.covertFieldError = func(field string, transMessage string) error {
-			return fmt.Errorf("field %s: %s", field, transMessage)
+	if validator.convertFieldError == nil {
+		validator.convertFieldError = func(field string, transMessage string) error {
+			return &FieldError{
+				field:   field,
+				message: transMessage,
+			}
 		}
 	}
 
@@ -53,12 +56,12 @@ func New(opts ...Option) (*Validator, error) {
 }
 
 type Validator struct {
-	validate         *goValidator.Validate
-	translator       *ut.UniversalTranslator
-	fieldNames       map[string]string
-	defaultLocale    string
-	localeHandler    func(context.Context) string
-	covertFieldError func(field string, transMessage string) error
+	validate          *goValidator.Validate
+	translator        *ut.UniversalTranslator
+	fieldNames        map[string]string
+	defaultLocale     string
+	localeHandler     func(context.Context) string
+	convertFieldError func(field string, transMessage string) error
 }
 
 func (v *Validator) Validate(input any) error {
@@ -78,7 +81,7 @@ func (v *Validator) ValidateCtx(ctx context.Context, input any) error {
 				return cause
 			}
 			for i, e := range validationErrors {
-				errs[i] = v.covertFieldError(e.StructField(), e.Translate(translator))
+				errs[i] = v.convertFieldError(e.StructField(), e.Translate(translator))
 			}
 		}
 		return &errs

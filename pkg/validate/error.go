@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -26,4 +27,21 @@ func (e *Errors) Unwrap() []error {
 		return zero
 	}
 	return *e
+}
+
+type FieldError struct {
+	field   string
+	message string
+}
+
+func (e *FieldError) Field() string {
+	return e.field
+}
+
+func (e *FieldError) Message() string {
+	return e.message
+}
+
+func (e *FieldError) Error() string {
+	return fmt.Sprintf("field %s: %s", e.field, e.message)
 }

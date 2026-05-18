@@ -37,25 +37,17 @@ type registerUsecase struct {
 
 // Execute -.
 func (uc *registerUsecase) Execute(ctx context.Context, input *RegisterInput) (*RegisterOutput, error) {
-	entity, err := uc.userRepo.FindByEmail(ctx, input.Email)
-	if entity != nil {
-		return nil, errors.TypeAlreadyExists.New("user already registered")
-	}
-
-	if err != nil {
-		if !errors.TypeNotFound.Is(err) {
-			return nil, err
-		}
-	}
-
 	passwordHash, err := uc.hasher.Hash(input.PlainPassword)
 	if err != nil {
 		return nil, errors.TypeUnexpected.Wrap(err, "failed to hash password")
 	}
 
-	entity = user.New(input.Name, input.Email, passwordHash)
+	entity := user.New(input.Name, input.Email, passwordHash)
 	newID, err := uc.userRepo.Save(ctx, entity)
 	if err != nil {
+		if errors.TypeAlreadyExists.Is(err) {
+			return nil, err
+		}
 		return nil, errors.TypeUnexpected.Wrap(err, "failed to save user")
 	}
 
